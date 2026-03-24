@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login — Workforce AI</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <h1>Workforce AI</h1>
+  <p>Frontend is working.</p>
+
+  <script>
+    fetch("http://localhost:8000")
+      .then(res => res.json())
+      .then(data => {
+        document.body.innerHTML += `<p style="color:green">Backend connected: ${data.message}</p>`
+      })
+      .catch(() => {
+        document.body.innerHTML += `<p style="color:red">Backend not running — start uvicorn</p>`
+      })
+  </script>
+</body>
+</html>
