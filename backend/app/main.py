@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .database import engine, Base
+from .models import User, Task
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
