@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register — Workforce AI</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1>Create account</h1>
+            <p class="subtitle">Join your team on Workforce AI</p>
+
+            <div class="form-group">
+                <label for="fullName">Full name</label>
+                <input type="text" id="fullName" placeholder="John Smith">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="you@example.com">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="••••••••">
+            </div>
+
+            <div class="form-group">
+                <label for="role">Role</label>
+                <select id="role">
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                </select>
+            </div>
+
+            <button class="btn" id="registerBtn" onclick="handleRegister()">Create account</button>
+
+            <p id="errorMsg" class="error-msg" style="display:none"></p>
+            <p id="successMsg" class="success-msg" style="display:none"></p>
+
+            <div class="auth-switch">
+                Already have an account? <a href="login.html">Sign in</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        redirectIfLoggedIn();
+
+        async function handleRegister() {
+            const full_name = document.getElementById("fullName").value.trim();
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value;
+            const role = document.getElementById("role").value;
+            const btn = document.getElementById("registerBtn");
+            const errorMsg = document.getElementById("errorMsg");
+            const successMsg = document.getElementById("successMsg");
+
+            if (!full_name || !email || !password) {
+                showError("Please fill in all fields");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "Creating account...";
+            errorMsg.style.display = "none";
+            successMsg.style.display = "none";
+
+            try {
+                await apiRequest("/auth/register", "POST", { full_name, email, password, role });
+                successMsg.textContent = "Account created! Redirecting to login...";
+                successMsg.style.display = "block";
+                setTimeout(() => window.location.href = "login.html", 1500);
+            } catch (err) {
+                showError(err.message);
+                btn.disabled = false;
+                btn.textContent = "Create account";
+            }
+        }
+
+        function showError(msg) {
+            const errorMsg = document.getElementById("errorMsg");
+            errorMsg.textContent = msg;
+            errorMsg.style.display = "block";
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") handleRegister();
+        });
+    </script>
+</body>
+</html>
