@@ -1,14 +1,13 @@
-import anthropic
+from groq import Groq
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def build_workspace_context(user, tasks, all_users):
-    context = f"""
-You are an AI assistant for Workforce AI, a team task management system.
+    context = f"""You are an AI assistant for Workforce AI, a team task management system.
 You have access to real-time workspace data. Answer questions based on this data only.
 
 CURRENT USER:
@@ -52,11 +51,10 @@ def ask_claude(user, tasks, all_users, conversation_history: list, user_message:
 
     messages = conversation_history + [{"role": "user", "content": user_message}]
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         max_tokens=1000,
-        system=system_prompt,
-        messages=messages
+        messages=[{"role": "system", "content": system_prompt}] + messages
     )
 
-    return response.content[0].text
+    return response.choices[0].message.content

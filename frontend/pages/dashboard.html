@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard — Workforce AI</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-logo">Workforce AI</div>
+            <a class="sidebar-item active" href="dashboard.html">Dashboard</a>
+            <a class="sidebar-item" href="tasks.html">Tasks</a>
+            <div class="sidebar-bottom">
+                <div class="sidebar-item" id="userInfo" style="color:#888;font-size:13px"></div>
+                <a class="sidebar-item" onclick="logout()" style="color:#ef4444;cursor:pointer">Sign out</a>
+            </div>
+        </div>
+
+        <!-- Main -->
+        <div class="main-content">
+            <div class="page-header">
+                <div>
+                    <h2 id="welcomeMsg">Welcome back</h2>
+                    <p>Here's what's happening with your team today.</p>
+                </div>
+                <button class="btn-small" id="newTaskBtn" style="display:none" onclick="openModal()">+ New Task</button>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">Total Tasks</div>
+                    <div class="stat-value blue" id="totalTasks">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Completed</div>
+                    <div class="stat-value green" id="doneTasks">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">In Progress</div>
+                    <div class="stat-value" id="inProgressTasks">—</div>
+                </div>
+            </div>
+
+            <!-- Task list -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Tasks</h3>
+                </div>
+                <table class="task-table">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Due Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskTableBody">
+                        <tr><td colspan="5" class="empty-state">Loading tasks...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Task Modal -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal">
+            <h3>Create New Task</h3>
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="taskTitle" placeholder="Task title">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" id="taskDesc" placeholder="Optional description">
+            </div>
+            <div class="form-group">
+                <label>Priority</label>
+                <select id="taskPriority">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Assign To</label>
+                <select id="taskAssignee"></select>
+            </div>
+            <div class="form-group">
+                <label>Due Date</label>
+                <input type="datetime-local" id="taskDueDate">
+            </div>
+            <p id="modalError" class="error-msg" style="display:none"></p>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-small" onclick="createTask()">Create Task</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        redirectIfNotLoggedIn();
+
+        const user = getUser();
+
+        document.getElementById("welcomeMsg").textContent = `Welcome back, ${user.full_name}`;
+        document.getElementById("userInfo").textContent = `${user.full_name} (${user.role})`;
+
+        if (user.role === "manager") {
+            document.getElementById("newTaskBtn").style.display = "block";
+        }
+
+        async function loadTasks() {
+            try {
+                const tasks = await apiRequest("/tasks/");
+                renderStats(tasks);
+                renderTasks(tasks);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function renderStats(tasks) {
+            document.getElementById("totalTasks").textContent = tasks.length;
+            document.getElementById("doneTasks").textContent = tasks.filter(t => t.status === "done").length;
+            document.getElementById("inProgressTasks").textContent = tasks.filter(t => t.status === "in_progress").length;
+        }
+
+        function renderTasks(tasks) {
+            const tbody = document.getElementById("taskTableBody");
+            if (tasks.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No tasks yet.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = tasks.map(task => `
+                <tr>
+                    <td><b>${task.title}</b>${task.description ? `<br><span style="color:#888;font-size:12px">${task.description}</span>` : ""}</td>
+                    <td><span class="badge badge-${task.priority}">${task.priority}</span></td>
+                    <td>
+                        <select class="status-select" onchange="updateStatus(${task.id}, this.value)" style="border:1px solid #eee;border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit">
+                            <option value="todo" ${task.status === "todo" ? "selected" : ""}>Todo</option>
+                            <option value="in_progress" ${task.status === "in_progress" ? "selected" : ""}>In Progress</option>
+                            <option value="done" ${task.status === "done" ? "selected" : ""}>Done</option>
+                        </select>
+                    </td>
+                    <td style="color:#888;font-size:13px">${task.due_date ? new Date(task.due_date).toLocaleDateString() : "—"}</td>
+                    <td>
+                        ${user.role === "manager" ? `<span style="color:#ef4444;cursor:pointer;font-size:13px" onclick="deleteTask(${task.id})">Delete</span>` : "—"}
+                    </td>
+                </tr>
+            `).join("");
+        }
+
+        async function updateStatus(taskId, newStatus) {
+            try {
+                await apiRequest(`/tasks/${taskId}`, "PUT", { status: newStatus });
+                loadTasks();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm("Delete this task?")) return;
+            try {
+                await apiRequest(`/tasks/${taskId}`, "DELETE");
+                loadTasks();
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const users = await apiRequest("/users/");
+                const select = document.getElementById("taskAssignee");
+                select.innerHTML = users.map(u => `<option value="${u.id}">${u.full_name} (${u.role})</option>`).join("");
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function openModal() {
+            document.getElementById("taskModal").classList.add("open");
+            loadUsers();
+        }
+
+        function closeModal() {
+            document.getElementById("taskModal").classList.remove("open");
+            document.getElementById("modalError").style.display = "none";
+        }
+
+        async function createTask() {
+            const title = document.getElementById("taskTitle").value.trim();
+            const description = document.getElementById("taskDesc").value.trim();
+            const priority = document.getElementById("taskPriority").value;
+            const assignee_id = parseInt(document.getElementById("taskAssignee").value);
+            const due_date = document.getElementById("taskDueDate").value || null;
+
+            if (!title) {
+                document.getElementById("modalError").textContent = "Title is required";
+                document.getElementById("modalError").style.display = "block";
+                return;
+            }
+
+            try {
+                await apiRequest("/tasks/", "POST", { title, description, priority, assignee_id, due_date });
+                closeModal();
+                loadTasks();
+            } catch (err) {
+                document.getElementById("modalError").textContent = err.message;
+                document.getElementById("modalError").style.display = "block";
+            }
+        }
+
+        loadTasks();
+    </script>
+    <!-- AI Chat Panel -->
+    <div class="chat-panel" id="chatPanel">
+        <div class="chat-header" onclick="toggleChat()">
+            <span>AI Assistant</span>
+            <span class="chat-toggle" id="chatToggle">▼</span>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-bubble assistant">Hi! I'm your AI assistant. Ask me anything about your tasks and team.</div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" id="chatInput" placeholder="Ask something..." />
+            <button class="chat-send-btn" id="chatSendBtn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        let chatHistory = [];
+        let chatOpen = true;
+
+        function toggleChat() {
+            chatOpen = !chatOpen;
+            document.getElementById("chatPanel").classList.toggle("collapsed", !chatOpen);
+            document.getElementById("chatToggle").textContent = chatOpen ? "▼" : "▲";
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById("chatInput");
+            const message = input.value.trim();
+            if (!message) return;
+
+            input.value = "";
+            appendMessage("user", message);
+
+            const typingBubble = appendMessage("typing", "Thinking...");
+            document.getElementById("chatSendBtn").disabled = true;
+
+            try {
+                const data = await apiRequest("/chat/", "POST", {
+                    message,
+                    history: chatHistory
+                });
+
+                typingBubble.remove();
+                appendMessage("assistant", data.response);
+
+                chatHistory.push({ role: "user", content: message });
+                chatHistory.push({ role: "assistant", content: data.response });
+
+            } catch (err) {
+                typingBubble.remove();
+                appendMessage("assistant", "Sorry, something went wrong. Try again.");
+            }
+
+            document.getElementById("chatSendBtn").disabled = false;
+        }
+
+        function appendMessage(role, text) {
+            const messages = document.getElementById("chatMessages");
+            const bubble = document.createElement("div");
+            bubble.className = `chat-bubble ${role}`;
+            bubble.textContent = text;
+            messages.appendChild(bubble);
+            messages.scrollTop = messages.scrollHeight;
+            return bubble;
+        }
+
+        document.getElementById("chatInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") sendMessage();
+        });
+    </script>
+</body>
+</html>
